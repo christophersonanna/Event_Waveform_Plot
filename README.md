@@ -1,8 +1,26 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jan 28 14:22:14 2026
+Project Working Structure
 
-@author: anna
-"""
+* config.py
+
+* get_data.py
+    - Reads data file in
+
+* parameter_cuts_and_organization.py
+    - Applies all cuts wanted and organizes the data.
+
+
+Plot_Array Folder: Plots the SD Array w/ triggered detectors
+
+* 
+
+Plot_Waveforms Folder: Plots the waveforms of all triggered detectors
+
+* 
+
+
+
+
+
+
+
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jan 28 14:29:32 2026
 
-@author: anna
-"""
+import z_config as config
+import pandas as pd #[will change later]
 
+#loading data
+parquet_file = pd.read_parquet(config.PROCESSED_DATA_PATH)
