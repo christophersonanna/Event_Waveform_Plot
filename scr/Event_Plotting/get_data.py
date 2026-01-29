@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import z_config as config
+import config
 import pandas as pd #[will change later]
 
 #loading data

@@ -7,19 +7,8 @@ import matplotlib.pyplot as plt
 
 from parameter_cuts_and_organization import data_df #will remove once I know the def works
 
-
-#The first definitions are based on a 9x9 grid MC because that's what I'm working
-#   with, but the definition below accounts for the entire main array
-
-
-def SD_9x9_array():
-    
-    
-    
-    
-    return
-
-
+#for now, we're working with the XXYY coordinate system, but I do want to make a lat/long
+#   array too
 
 def SD_main_array():
     
