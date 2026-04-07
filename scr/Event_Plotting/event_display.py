@@ -3,76 +3,90 @@ import numpy as np
 import config
 from data_structure import Event
 
-def plot_event_display(event: Event):
-    # 1. Apply the 'isgood' cut immediately
-    # This filters out detectors that didn't pass the pattern/timing quality checks
-    valid_hits = [h for h in event.hits if h.isgood >= 3]
-    
+def plot_event_display(event: Event, min_isgood=3):
+    # Filter hits by quality cut
+    valid_hits = [h for h in event.hits if h.isgood >= min_isgood]
     if not valid_hits:
-        print(f"Skipping Event {event.event_id}: No 'isgood' hits found.")
+        print(f"No hits pass isgood >= {min_isgood}")
         return
 
-    num_hits = len(valid_hits)
+    rel_times = np.array([h.reltime for h in valid_hits])
+    rel_times -= np.min(rel_times)
+    sorted_idx = np.argsort(rel_times)
     
-    # 2. Timing and Signal Calculations using valid_hits
-    times = np.array([h.reltime for h in valid_hits])
-    t0 = np.min(times)
-    rel_times = times - t0 
+    # Layout: Info (top-left), Array (bottom-left), Waveforms (right)
+    fig = plt.figure(figsize=(22, 13))
+    gs = fig.add_gridspec(2, 2, height_ratios=[1.2, 6], width_ratios=[1, 1.4], hspace=0.1)
     
-    # Sort hits by time (Earliest first) for the stack
-    sorted_indices = np.argsort(rel_times)
-    
-    fig = plt.figure(figsize=(18, 10))
-    
-    # --- Left Plot: SD Array ---
-    ax1 = fig.add_subplot(1, 2, 1)
-    ew_hits = np.array([(h.xxyy // 100) for h in valid_hits])
-    ns_hits = np.array([(h.xxyy % 100) for h in valid_hits])
-    # Summing FADC bins to estimate total signal strength
-    signals = np.array([np.sum(h.fadc0) for h in valid_hits])
-    
-    # Background Grid (Reference Dots)
-    grid_x, grid_y = np.meshgrid(np.arange(1, 21), np.arange(1, 25))
-    ax1.scatter(grid_x, grid_y, s=2, c='gray', alpha=0.2, marker='.')
-    
-    sc = ax1.scatter(ew_hits, ns_hits, s=signals/10, c=rel_times, cmap='turbo', edgecolors='k')
-    ax1.set_title(f"Event {event.event_id} Map")
-    plt.colorbar(sc, ax=ax1, label="Time [µs]")
+    ax_info = fig.add_subplot(gs[0, 0])
+    ax_array = fig.add_subplot(gs[1, 0])
+    ax_wave = fig.add_subplot(gs[:, 1])
 
-    # --- Right Plot: Stacked Waveforms (First Hit on Top) ---
-    ax2 = fig.add_subplot(1, 2, 2)
-    # 128 bins per FADC waveform defined in config
-    time_bins = np.linspace(0, 25, config.WAVEFORM_BINS) 
+    # --- Top Left: Event Information (Clean floating text) ---
+    ax_info.set_axis_off() # Removes the box and all axis labels/ticks
     
-    v_space = 80 
-    total_height = num_hits * v_space
+    # Fix Zenith: Convert from milliradians to degrees if value is > 180
+    zenith_deg = np.degrees(event.theta)
+    if zenith_deg > 180:
+        zenith_deg = np.degrees(event.theta / 1000.0)
 
-    for i, idx in enumerate(sorted_indices):
+    info_text = (f"Event ID: {event.event_id}\n"
+                 f"Energy: $10^{{{event.energy:.2f}}}$ eV\n"
+                 f"Zenith: {zenith_deg:.1f}°")
+    
+    # Text placement at (0, 0.5) inside the invisible info subplot
+    ax_info.text(0.0, 0.5, info_text, fontsize=14, weight='bold', 
+                 va='center', ha='left', linespacing=1.6)
+
+    # --- Bottom Left: Footprint & Shower Front ---
+    gx, gy = np.meshgrid(np.arange(1, 21), np.arange(1, 25))
+    ax_array.scatter(gx, gy, s=6, c='royalblue', alpha=0.3, marker='o') 
+    
+    ew = np.array([h.xxyy // 100 for h in valid_hits])
+    ns = np.array([h.xxyy % 100 for h in valid_hits])
+    sigs = np.array([np.sum(h.fadc0) for h in valid_hits])
+    
+    point_sizes = (np.log10(sigs + 1) * 35) 
+    ax_array.scatter(ew, ns, s=point_sizes, c=rel_times, cmap='turbo', edgecolors='k', zorder=3)
+    
+    dx, dy = np.cos(event.phi), np.sin(event.phi)
+    ax_array.arrow(event.xcore, event.ycore, dx*3.5, dy*3.5,
+                   head_width=0.6, head_length=0.8, color='k', zorder=5)
+    
+    # Shower Front Line
+    f_scale = 1.2
+    ax_array.plot([event.xcore - dy*f_scale, event.xcore + dy*f_scale], 
+                  [event.ycore + dx*f_scale, event.ycore - dx*f_scale], color='k', lw=2, zorder=4)
+
+    for spine in ['top', 'right']:
+        ax_array.spines[spine].set_visible(False)
+    ax_array.set_aspect('equal')
+    ax_array.set_xlabel("East-West [XX]")
+    ax_array.set_ylabel("North-South [YY]")
+
+    # --- Right Plot: Waveforms (Y-axis starts at 0) ---
+    v_gap = 140 
+    time_per_bin = 0.1 
+    time_axis_base = np.arange(config.WAVEFORM_BINS) * time_per_bin
+
+    for i, idx in enumerate(sorted_idx):
         h = valid_hits[idx]
+        offset = (len(valid_hits) - i) * v_gap
+        mip_val = np.max(h.fadc0) / 50.0 
+        norm_wf = (h.fadc0 / (np.max(h.fadc0) + 1e-9)) * (v_gap * 0.7)
         
-        # Chronological Offset: Early hits at high Y values
-        offset = total_height - (i * v_space)
-        
-        # Color matching the time scale on the map
         color = plt.cm.turbo(rel_times[idx] / (np.max(rel_times) + 1e-9))
+        ax_wave.plot(time_axis_base + rel_times[idx], norm_wf + offset, color=color, lw=1.2)
         
-        # Normalize waveform peak to fit within its vertical slice
-        peak = np.max(h.fadc0)
-        norm_wf = (h.fadc0 / peak * (v_space * 0.8)) if peak > 0 else h.fadc0
-        
-        # Plotting the trace with the timing shift (rel_times)
-        ax2.plot(time_bins + rel_times[idx], norm_wf + offset, color=color, lw=1.5)
-        
-        # Annotations: ID and Distance from core (calculated in load.py)
-        label = f"SD{h.xxyy:04d}: {h.radius:.1f} km"
-        ax2.text(rel_times[idx] + 26, offset + 5, label, fontsize=8)
+        label = f"SD{h.xxyy:04d}: {mip_val:.1f} MIP | {h.radius:.2f} km"
+        ax_wave.text(time_axis_base[-1] + rel_times[idx] + 0.8, offset + 10, label, fontsize=9)
 
-    ax2.set_xlim(-2, np.max(rel_times) + 40)
-    ax2.set_ylim(-10, total_height + v_space)
-    ax2.set_xlabel("Relative time from earliest detector [µs]")
-    ax2.get_yaxis().set_visible(False)
+    for spine in ['top', 'right']:
+        ax_wave.spines[spine].set_visible(False)
     
-    plt.tight_layout()
+    ax_wave.set_yticks([]) 
+    ax_wave.set_xlabel("Relative time from earliest detector [µs]")
+    ax_wave.set_xlim(left=0) 
+    
+    plt.subplots_adjust(left=0.08, right=0.88, top=0.95, bottom=0.1, wspace=0.15)
     plt.show()
-    #print(f"SD{h.xxyy:04d}: {h.isgood}")
-    print(rel_times)
