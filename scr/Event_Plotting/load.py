@@ -50,6 +50,13 @@ def load_and_transform(file_path: str) -> list[Event]:
             # 3. Pattern/Timing - These are also nested var * var
             try:
                 hit_is_good = fp.isgood[i] # This looks like var * int
+                '''isgood[i] = 0 : the counter to which i'th hit corresonds was not working
+                isgood[i] = 1 : i'th hit is not a part of any clusters
+                isgood[i] = 2 : i'th hit is a part of space cluster
+                isgood[i] = 3:  i'th hit passed rough time pattern recognition
+                isgood[i] = 4:  i'th hit is a part of the event
+                isgood[i] = 5:  i'th hit corresponds to a saturated counter
+                '''
                 hit_sstart = fp.sstart[i][0]
                 hit_reltime = fp.reltime[i][0]
                 hit_timeerr = fp.timeerr[i][0]

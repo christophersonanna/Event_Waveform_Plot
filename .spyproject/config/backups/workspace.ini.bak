@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['README.md', 'scr/Event_Plotting/plotting.py', 'scr/Event_Plotting/combine_waveform_and_time.py']
+recent_files = ['scr/Event_Plotting/aggregation.py', 'scr/Event_Plotting/config.py', 'scr/Event_Plotting/data_structure.py', 'scr/Event_Plotting/event_display.py', 'scr/Event_Plotting/load.py', 'scr/Event_Plotting/main.py', 'scr/Event_Plotting/data_manager.py', '../.config/spyder-py3/autosave/n_type.py']
 
 [main]
 version = 0.2.0
