@@ -8,16 +8,19 @@ from event_display import plot_event_display
 
 def main():
     parser = argparse.ArgumentParser(description="TA Universal Loader & Plotter")
+    
+    # Input/Cache Args
     parser.add_argument("-i", "--input", nargs='+', help="Input directories or files")
     parser.add_argument("--cache", help="Path to save/load .npz file")
     parser.add_argument("--force", action="store_true", help="Overwrite existing cache")
-    parser.add_argument("--isgood", type=int, default=3, help="Minimum isgood value")
+    parser.add_argument("--isgood", type=int, default=3, help="Minimum isgood value (0-4)")
     parser.add_argument("--step", type=int, default=1, help="Load every nth file")
     
-    # Updated index to take 1 or 2 values (e.g., -n 5 or -n 5 12)
-    parser.add_argument("-n", "--index", type=int, nargs='+', default=[0], help="Event index or range (start end)")
+    # Plotting/Saving Args
+    parser.add_argument("-n", "--index", type=int, nargs='+', default=[0], help="Index or range [start end]")
+    parser.add_argument("--save", type=str, help="Folder to save plots instead of showing them")
     
-    # Updated search arguments to take an optional count
+    # Search Args
     parser.add_argument('--highest-energy', type=int, nargs='?', const=1, help='Plot top N energy events')
     parser.add_argument('--most-hits', type=int, nargs='?', const=1, help='Plot top N events with most hits')
     parser.add_argument('--find-time', type=str, help='Find event closest to time (YYYY-MM-DD HH:MM:SS)')
@@ -25,7 +28,7 @@ def main():
     args = parser.parse_args()
     events = []
 
-    # Loading Logic
+    # 1. Loading
     if args.input:
         if args.cache and os.path.exists(args.cache) and not args.force:
             events = load_from_npz(args.cache)
@@ -45,41 +48,45 @@ def main():
         events = load_from_npz(args.cache)
 
     if not events:
-        print("No events found.")
+        print("No events loaded.")
         return
 
-    target_events = []
+    # Create save directory if requested
+    if args.save and not os.path.exists(args.save):
+        os.makedirs(args.save)
 
-    # Selection Logic for Multiple Plots
+    # 2. Selection
+    target_list = []
     if args.highest_energy is not None:
-        # Sort by energy descending and take N
-        target_events = sorted(events, key=lambda e: e.energy, reverse=True)[:args.highest_energy]
-        print(f"Plotting top {len(target_events)} highest energy events.")
-
+        target_list = sorted(events, key=lambda e: e.energy, reverse=True)[:args.highest_energy]
     elif args.most_hits is not None:
-        # Sort by hit count passing isgood filter
-        target_events = sorted(events, key=lambda e: len([h for h in e.hits if h.isgood >= args.isgood]), reverse=True)[:args.most_hits]
-        print(f"Plotting top {len(target_events)} events with most hits.")
-
+        target_list = sorted(events, key=lambda e: len([h for h in e.hits if h.isgood >= args.isgood]), reverse=True)[:args.most_hits]
     elif args.find_time:
-        search_ts = datetime.strptime(args.find_time, "%Y-%m-%d %H:%M:%S").timestamp()
-        closest = min(events, key=lambda e: abs(getattr(e, 'time', 0) - search_ts))
-        target_events = [closest]
-
+        try:
+            search_ts = datetime.strptime(args.find_time, "%Y-%m-%d %H:%M:%S").timestamp()
+            closest = min(events, key=lambda e: abs(getattr(e, 'time', 0) - search_ts))
+            target_list = [closest]
+        except ValueError:
+            print("Time format: YYYY-MM-DD HH:MM:SS")
+            return
     else:
-        # Handle index or range
         if len(args.index) == 1:
             idx = args.index[0]
-            target_events = [events[idx]] if idx < len(events) else []
+            if idx < len(events): target_list = [events[idx]]
         else:
             start, end = args.index[0], args.index[1]
-            target_events = events[start:end+1]
-            print(f"Plotting range {start} to {end}.")
+            target_list = events[start : end + 1]
 
-    # Loop through and plot
-    for ev in target_events:
-        print(f"Displaying Event ID: {ev.event_id}")
-        plot_event_display(ev, min_isgood=args.isgood)
+    # 3. Plotting Loop
+    for ev in target_list:
+        save_path = None
+        if args.save:
+            save_path = os.path.join(args.save, f"event_{ev.event_id}.png")
+            print(f"Saving Event {ev.event_id} to {save_path}...")
+        else:
+            print(f"Displaying Event {ev.event_id}...")
+            
+        plot_event_display(ev, min_isgood=args.isgood, save_to=save_path)
 
 if __name__ == "__main__":
     main()

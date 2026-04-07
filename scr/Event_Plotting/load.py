@@ -18,7 +18,7 @@ def load_and_transform(file_path: str) -> list[Event]:
         dr = row.rusdraw    # Raw SD data (fadc, xxyy)
         fp = row.rufptn     # Timing/Pattern (reltime, isgood)
         gm = row.rusdgeom   # Geometry (xcore, ycore)
-
+        ldf = row.rufldf    # Final Reconstuction LDF
         event_hits = []
         
         # In this schema, 'xxyy' is the reliable length for hits in the SD
@@ -26,8 +26,8 @@ def load_and_transform(file_path: str) -> list[Event]:
         
         for i in range(num_hits):
             # 1. Geometry - 
-            x_c = gm.xcore[0] if hasattr(gm.xcore, "__len__") else gm.xcore
-            y_c = gm.ycore[0] if hasattr(gm.ycore, "__len__") else gm.ycore
+            x_c = float(ldf.xcore[0]) if hasattr(ldf.xcore, "__len__") else float(ldf.xcore)
+            y_c = float(ldf.ycore[0]) if hasattr(ldf.ycore, "__len__") else float(ldf.ycore)
             
             xy = dr.xxyy[i]
             dx = (xy // 100) - x_c
@@ -70,18 +70,26 @@ def load_and_transform(file_path: str) -> list[Event]:
                 reltime=float(hit_reltime), timeerr=float(hit_timeerr)
             ))
 
+        # In load_and_transform, update the energy line:
+        raw_energy = ldf.energy[0] if hasattr(ldf.energy, "__len__") else ldf.energy
+
+        # If raw_energy is 1.87, this makes it 10^(log10(1.87) + 18) = 10^18.27
+        event_energy = float(np.log10(raw_energy) + 18) if raw_energy > 0 else 0.0
+
         if len(event_hits) > 0:
             events_list.append(Event(
                 event_id=int(dr.event_num),
                 particle=int(sl.particle),
-                energy=float(np.log10(sl.energy)) if sl.energy > 0 else 0.0,
+                # Reconstructed Energy from LDF
+                energy=event_energy,#float(np.log10(ldf.energy[0])) if hasattr(ldf.energy, "__len__") else float(np.log10(ldf.energy)),
                 hits=event_hits,
-                xcore=float(x_c), ycore=float(y_c),
-                xmax=float(sl.xmax),
-                phi=float(gm.phi[0]) if hasattr(gm.phi, "__len__") else float(gm.phi),
-                theta=float(gm.theta[0]) if hasattr(gm.theta, "__len__") else float(gm.theta)
+                xcore=x_c, 
+                ycore=y_c,
+                xmax=float(sl.xmax), # Xmax is almost always only in MC (showlib)
+                phi=float(ldf.phi),
+                theta=float(ldf.theta)
             ))
-
+            
     print(f"Successfully Loaded {len(events_list)} events.")
     return events_list
 
